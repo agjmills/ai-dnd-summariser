@@ -17,7 +17,14 @@ Speakers are anonymous (`SPEAKER_00`, `SPEAKER_01`, ...) because diarization is 
 
 1. **Read the transcript.** If the user didn't name one, look in `recordings/` and pick the most recent `.txt`. If there's no `.txt` but there's a `.wav`, tell the user they need to run `transcribe.py` first.
 2. **Identify speakers.** Read enough of the transcript to guess which `SPEAKER_XX` is the DM (talks more, narrates scenes, voices NPCs, calls for rolls). Ask the user to confirm DM + player character names before writing the recap — don't guess character names from training data.
-3. **Write the recap** with these sections, omitting any that have no content:
+3. **Pick a session title.** Choose a short, evocative phrase that captures the session — 2-6 words, ideally lifted from something said or witnessed in-game (a name, a place, a memorable line). Avoid generic titles like "Session 5" or "DnD Recap". Examples: *"The Calthus Manuscript"*, *"Three Moons Drew Close"*, *"Quillnook's Index"*. Put it in YAML frontmatter at the top of the file:
+   ```yaml
+   ---
+   title: The Calthus Manuscript
+   ---
+   ```
+   (The `date:` line, if present, should be preserved.)
+4. **Write the recap** with these sections, omitting any that have no content:
    - **Where we left off** (1 sentence)
    - **What happened** (chronological bullet points — plot beats, not blow-by-blow)
    - **NPCs met** (name, role, vibe, current disposition toward party)
@@ -25,7 +32,7 @@ Speakers are anonymous (`SPEAKER_00`, `SPEAKER_01`, ...) because diarization is 
    - **Loot & rewards**
    - **Open threads / hooks** (unresolved questions, foreshadowing, things the DM dropped that the party hasn't picked up on)
    - **Memorable moments** (jokes, crits, character moments — short)
-4. **Length.** Aim for something a player can read in 2 minutes before next session. Cut anything that's just procedural ("we rolled initiative", "took a short rest") unless it mattered.
+5. **Length.** Aim for something a player can read in 2 minutes before next session. Cut anything that's just procedural ("we rolled initiative", "took a short rest") unless it mattered.
 
 ## What to avoid
 
