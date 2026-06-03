@@ -1,11 +1,17 @@
-"""Transcribe a wav with WhisperX. Diarization on if HF_TOKEN env var is set."""
+"""Transcription using whisper.cpp (Metal GPU) + pyannote (MPS) diarisation.
+
+Takes a wav, writes <name>.txt + <name>.json. Auto-downloads the ggml model
+on first use.
+"""
 import argparse
-import os
-import sys
 import json
+import os
+import subprocess
+import sys
+import tempfile
+import urllib.request
 from pathlib import Path
 
-# Load .env if present (no dependency)
 env_path = Path(__file__).parent / ".env"
 if env_path.exists():
     for line in env_path.read_text().splitlines():
@@ -15,12 +21,92 @@ if env_path.exists():
         k, v = line.split("=", 1)
         os.environ.setdefault(k.strip(), v.strip())
 
-import whisperx
+import wave
+import numpy as np
+import torch
+from pyannote.audio import Pipeline
+
+
+def load_wav(path: Path) -> tuple[torch.Tensor, int]:
+    """Load wav with Python's stdlib, return (waveform, sample_rate). Avoids torchaudio backend mess."""
+    with wave.open(str(path), "rb") as w:
+        sr = w.getframerate()
+        n = w.getnframes()
+        ch = w.getnchannels()
+        sw = w.getsampwidth()
+        raw = w.readframes(n)
+    if sw != 2:
+        raise RuntimeError(f"expected 16-bit pcm, got sampwidth={sw}")
+    audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    if ch > 1:
+        audio = audio.reshape(-1, ch).mean(axis=1)
+    return torch.from_numpy(audio).unsqueeze(0), sr
+
+
+def run_whisper_cpp(audio: Path, model: Path, language: str) -> list[dict]:
+    """Returns list of {start, end, text} with times in seconds."""
+    with tempfile.TemporaryDirectory() as td:
+        out_base = Path(td) / "out"
+        subprocess.run(
+            [
+                "whisper-cli",
+                "-m", str(model),
+                "-f", str(audio),
+                "-l", language,
+                "-oj",
+                "-of", str(out_base),
+                "-np",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        data = json.loads((out_base.with_suffix(".json")).read_text())
+
+    segments = []
+    for s in data["transcription"]:
+        segments.append({
+            "start": s["offsets"]["from"] / 1000.0,
+            "end": s["offsets"]["to"] / 1000.0,
+            "text": s["text"].strip(),
+        })
+    return segments
+
+
+def diarize(audio: Path, hf_token: str, device: str) -> list[tuple[float, float, str]]:
+    """Returns list of (start, end, speaker_label)."""
+    pipeline = Pipeline.from_pretrained(
+        "pyannote/speaker-diarization-community-1",
+        token=hf_token,
+    )
+    pipeline.to(torch.device(device))
+    waveform, sample_rate = load_wav(audio)
+    output = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+    annotation = getattr(output, "speaker_diarization", output)
+    return [
+        (turn.start, turn.end, speaker)
+        for turn, _, speaker in annotation.itertracks(yield_label=True)
+    ]
+
+
+def assign_speakers(segments: list[dict], turns: list[tuple[float, float, str]]) -> list[dict]:
+    """For each segment, pick the speaker whose turn overlaps most."""
+    for seg in segments:
+        best_speaker = "?"
+        best_overlap = 0.0
+        for t_start, t_end, speaker in turns:
+            overlap = max(0.0, min(seg["end"], t_end) - max(seg["start"], t_start))
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_speaker = speaker
+        seg["speaker"] = best_speaker
+    return segments
+
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("audio", help="Path to wav/mp3 file")
-    ap.add_argument("--model", default="base", help="tiny|base|small|medium|large-v3")
+    ap.add_argument("audio", help="Path to wav file")
+    ap.add_argument("--model", default="small", help="tiny|base|small|medium|large-v3")
     ap.add_argument("--language", default="en")
     ap.add_argument("--no-diarize", action="store_true")
     args = ap.parse_args()
@@ -29,45 +115,50 @@ def main():
     if not audio_path.exists():
         sys.exit(f"not found: {audio_path}")
 
-    # Apple Silicon: WhisperX upstream is CPU-only on Mac (no CUDA, MPS not supported by faster-whisper).
-    device = "cpu"
-    compute_type = "int8"
+    models_dir = Path(__file__).parent / "models"
+    models_dir.mkdir(exist_ok=True)
+    model_path = models_dir / f"ggml-{args.model}.bin"
+    if not model_path.exists():
+        url = f"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{args.model}.bin"
+        print(f"downloading {url}", file=sys.stderr)
+        tmp = model_path.with_suffix(".bin.partial")
+        with urllib.request.urlopen(url) as r, tmp.open("wb") as f:
+            total = int(r.headers.get("Content-Length") or 0)
+            done = 0
+            while chunk := r.read(1 << 20):
+                f.write(chunk)
+                done += len(chunk)
+                if total:
+                    pct = 100 * done / total
+                    print(f"\r  {done / 1e6:.0f}/{total / 1e6:.0f} MB ({pct:.0f}%)", end="", file=sys.stderr)
+        print("", file=sys.stderr)
+        tmp.rename(model_path)
 
-    print(f"loading whisper model={args.model} on {device}", file=sys.stderr)
-    model = whisperx.load_model(args.model, device, compute_type=compute_type, language=args.language)
-
-    print("transcribing...", file=sys.stderr)
-    audio = whisperx.load_audio(str(audio_path))
-    result = model.transcribe(audio, batch_size=8)
-
-    print("aligning...", file=sys.stderr)
-    align_model, metadata = whisperx.load_align_model(language_code=result["language"], device=device)
-    result = whisperx.align(result["segments"], align_model, metadata, audio, device, return_char_alignments=False)
+    print(f"transcribing with whisper.cpp ({args.model}, Metal)...", file=sys.stderr)
+    segments = run_whisper_cpp(audio_path, model_path, args.language)
 
     hf_token = os.environ.get("HF_TOKEN")
     if hf_token and not args.no_diarize:
-        print("diarizing...", file=sys.stderr)
-        diarize_model = whisperx.diarize.DiarizationPipeline(token=hf_token, device=device)
-        diarize_segments = diarize_model(audio)
-        result = whisperx.assign_word_speakers(diarize_segments, result)
+        device = "mps" if torch.backends.mps.is_available() else "cpu"
+        print(f"diarising with pyannote ({device})...", file=sys.stderr)
+        turns = diarize(audio_path, hf_token, device)
+        segments = assign_speakers(segments, turns)
     else:
-        print("skipping diarization (set HF_TOKEN to enable)", file=sys.stderr)
+        print("skipping diarisation (set HF_TOKEN to enable)", file=sys.stderr)
 
     out_txt = audio_path.with_suffix(".txt")
     out_json = audio_path.with_suffix(".json")
-    with out_json.open("w") as f:
-        json.dump(result, f, indent=2, default=str)
+    out_json.write_text(json.dumps(segments, indent=2))
 
     with out_txt.open("w") as f:
-        for seg in result["segments"]:
+        for seg in segments:
             spk = seg.get("speaker", "?")
-            start = seg.get("start", 0)
-            text = seg.get("text", "").strip()
-            line = f"[{start:7.2f}s] {spk}: {text}"
+            line = f"[{seg['start']:7.2f}s] {spk}: {seg['text']}"
             print(line)
             f.write(line + "\n")
 
     print(f"\nwrote {out_txt} and {out_json}", file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()
