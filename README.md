@@ -38,3 +38,7 @@ uv run python transcribe.py recordings/<file>.wav --model small
 Models: `tiny`, `base`, `small` (recommended), `medium`, `large-v3`. The matching `ggml-<model>.bin` is downloaded on first use into `models/`. A 4-hour session at `small` takes roughly 15-30 min on an M1 Pro.
 
 **Recap** — open Claude Code in this dir and ask it to recap the latest session. The `dnd-recap` skill handles the rest.
+
+## How it works
+
+See [HOW_IT_WORKS.md](HOW_IT_WORKS.md) for a walkthrough of the pipeline: BlackHole capture → Whisper (via whisper.cpp, Metal) → pyannote diarisation (MPS) → Claude recap.
