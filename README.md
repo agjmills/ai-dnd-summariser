@@ -25,13 +25,11 @@ Record a Discord DnD session, transcribe it with speaker labels, get an AI-gener
 ```
 ./record.sh
 ```
-By default this captures BlackHole (index `:1`) as the system audio and your AirPods (`:0`) as the mic. Override with env vars if your devices differ:
+By default this captures BlackHole (index `:1`) as the system audio and a USB Audio Device (`:2`) as the mic. Override with env vars if your devices differ:
 ```
 SYS=:1 MIC=:4 ./record.sh    # MacBook Pro built-in mic instead
 ```
 List your device indices with `ffmpeg -f avfoundation -list_devices true -i ""`.
-
-> ⚠️ **AirPods caveat:** macOS forces AirPods into the mono SCO codec when they're used as a mic, which also degrades the audio you *hear*. This affects your live Discord experience, not just the recording.
 
 **Transcribe** with Metal GPU + diarisation (writes `.txt` + `.json` alongside the wav):
 ```

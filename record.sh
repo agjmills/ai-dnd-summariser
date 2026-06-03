@@ -6,13 +6,13 @@ set -euo pipefail
 #
 # Override device indices if needed:
 #   SYS=:1   (BlackHole 2ch — Discord output)
-#   MIC=:0   (your mic — defaults to AirPods)
+#   MIC=:2   (your mic — defaults to USB Audio Device)
 # Run `ffmpeg -f avfoundation -list_devices true -i ""` to see indices.
 
 mkdir -p recordings
 OUT="recordings/$(date +%Y-%m-%d-%H%M%S).wav"
 SYS="${SYS:-:1}"
-MIC="${MIC:-:0}"
+MIC="${MIC:-:2}"
 
 echo "Recording SYS=$SYS + MIC=$MIC -> $OUT"
 echo "Press Ctrl-C to stop."
