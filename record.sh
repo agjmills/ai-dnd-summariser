@@ -10,7 +10,8 @@ set -euo pipefail
 mkdir -p recordings
 OUT="recordings/$(date +%Y-%m-%d-%H%M%S).wav"
 
-DEVICES=$(ffmpeg -f avfoundation -list_devices true -i "" 2>&1 \
+DEVICES=$(ffmpeg -f avfoundation -list_devices true -i "" 2>&1 || true)
+DEVICES=$(echo "$DEVICES" \
   | awk '/AVFoundation audio devices:/{flag=1; next} flag && /\[[0-9]+\]/{print}')
 
 pick_device() {
