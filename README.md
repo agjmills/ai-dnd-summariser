@@ -18,28 +18,25 @@ Record a Discord DnD session, transcribe it with speaker labels, get an AI-gener
    ```
    HF_TOKEN=hf_...
    ```
-7. Download a whisper.cpp model (e.g. `small`):
-   ```
-   mkdir -p models
-   curl -L -o models/ggml-small.bin \
-     https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin
-   ```
 
 ## Use
 
-**Record** (Ctrl-C to stop):
+**Record** Discord output + your mic, mixed (Ctrl-C to stop):
 ```
 ./record.sh
 ```
+By default this captures BlackHole (index `:1`) as the system audio and your AirPods (`:0`) as the mic. Override with env vars if your devices differ:
+```
+SYS=:1 MIC=:4 ./record.sh    # MacBook Pro built-in mic instead
+```
+List your device indices with `ffmpeg -f avfoundation -list_devices true -i ""`.
+
+> ⚠️ **AirPods caveat:** macOS forces AirPods into the mono SCO codec when they're used as a mic, which also degrades the audio you *hear*. This affects your live Discord experience, not just the recording.
 
 **Transcribe** with Metal GPU + diarisation (writes `.txt` + `.json` alongside the wav):
 ```
-uv run python transcribe_metal.py recordings/<file>.wav --model small
+uv run python transcribe.py recordings/<file>.wav --model small
 ```
-Models: `tiny`, `base`, `small` (recommended), `medium`, `large-v3`. Download the matching `ggml-<model>.bin` into `models/` first. A 4-hour session at `small` takes roughly 15-30 min on an M1 Pro.
+Models: `tiny`, `base`, `small` (recommended), `medium`, `large-v3`. The matching `ggml-<model>.bin` is downloaded on first use into `models/`. A 4-hour session at `small` takes roughly 15-30 min on an M1 Pro.
 
 **Recap** — open Claude Code in this dir and ask it to recap the latest session. The `dnd-recap` skill handles the rest.
-
-## Fallback: CPU-only path
-
-If whisper.cpp / Metal isn't available, `transcribe.py` runs the same job through WhisperX on CPU. Much slower (a 4-hour session ≈ 2-3 hours), no extra setup beyond `uv sync`.
