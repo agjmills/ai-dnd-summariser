@@ -13,6 +13,10 @@ You are recapping a Dungeons & Dragons session from a diarized transcript produc
 
 Speakers are anonymous (`SPEAKER_00`, `SPEAKER_01`, ...) because diarization is unsupervised. One of them is the DM; the rest are players.
 
+## Canonical proper nouns
+
+This is a **Karneia** campaign. whisper.cpp garbles the proper nouns every session, so the authoritative spellings live in [`karneia-proper-nouns.md`](karneia-proper-nouns.md) — **read it before writing** and normalise every character, place, deity, and item name to the spelling there (e.g. transcript "Guthrin" → **Gwrtheryn**, "Morningstar" → **"Mourning" Star**, "Atmada" → **Atmata**). If a name isn't in that file, keep your best guess and mark it `[unclear: "best guess"]`.
+
 ## Steps
 
 1. **Read the transcript.** If the user didn't name one, look in `recordings/` and pick the most recent `.txt`. If there's no `.txt` but there's a `.wav`, tell the user they need to run `transcribe.py` first.
@@ -36,7 +40,7 @@ Speakers are anonymous (`SPEAKER_00`, `SPEAKER_01`, ...) because diarization is 
 
 ## What to avoid
 
-- Don't invent details. Transcription is imperfect — names of spells, NPCs, and places will often be garbled. When unsure, write `[unclear: "best guess"]` rather than guess silently.
+- Don't invent details. Transcription is imperfect — names of spells, NPCs, and places will often be garbled. Normalise proper nouns to [`karneia-proper-nouns.md`](karneia-proper-nouns.md); only when a name is absent from that list, write `[unclear: "best guess"]` rather than guess silently.
 - Don't quote SPEAKER_XX labels in the final recap — translate to character/player names once confirmed.
 - Don't summarise out-of-character chatter (snack runs, rules debates, real-world tangents) unless explicitly funny enough to include under "memorable moments".
 - Don't editorialise — the recap is for the table, not a review of the session.
