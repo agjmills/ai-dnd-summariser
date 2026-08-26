@@ -5,8 +5,9 @@ set -uo pipefail
 #
 #   1. Records Discord + mic to one timestamped wav (the canonical source of truth).
 #   2. Live transcript: catchup.py tails the growing wav (read-only) -> <wav>.live.txt.
-#   3. Live web feed: serve.py serves localhost:8000 and pushes the summary to the
-#      remote /live page (https://karneia.asdfx.us/live) while the session is live.
+#   3. Live web feed: serve.py serves localhost:8000 (or the next free port up) and
+#      pushes the summary to the remote /live page (https://karneia.asdfx.us/live)
+#      while the session is live.
 #   4. On Ctrl-C: stops the live stack, finalises the wav, then automatically runs the
 #      high-fidelity diarised transcription (transcribe.py).
 #
@@ -42,9 +43,34 @@ CATCHUP_PID=$!
 python3 serve.py "$LIVE_TXT" >/tmp/karneia-serve.log 2>&1 &
 SERVE_PID=$!
 
+# Give the live stack a moment to bind/start, then make sure it actually came up.
+# The recording is already safe either way — but a dead serve.py means nothing reaches
+# the remote /live page, and silently discovering that after the session is no fun.
+/bin/sleep 3
+LOCAL_URL="http://localhost:8000"
+if kill -0 "$SERVE_PID" 2>/dev/null; then
+  # serve.py may have walked past a taken port — report the one it actually bound.
+  PORT_LINE=$(grep -oE "http://0\.0\.0\.0:[0-9]+" /tmp/karneia-serve.log | tail -1)
+  [[ -n "$PORT_LINE" ]] && LOCAL_URL="http://localhost:${PORT_LINE##*:}"
+else
+  echo ""
+  echo "!! WARNING: serve.py died — no live web feed, and NOTHING is being pushed to"
+  echo "!!          https://karneia.asdfx.us/live. Recording + transcript are unaffected."
+  echo "!!          Last lines of /tmp/karneia-serve.log:"
+  sed 's/^/!!            /' <(tail -5 /tmp/karneia-serve.log)
+  echo "!!          Fix it, then in another shell: python3 serve.py \"$LIVE_TXT\""
+  LOCAL_URL="(serve.py not running)"
+fi
+if ! kill -0 "$CATCHUP_PID" 2>/dev/null; then
+  echo ""
+  echo "!! WARNING: catchup.py died — no live transcript, so the feed will stay empty."
+  echo "!!          Recording is unaffected; last lines of /tmp/karneia-catchup.log:"
+  sed 's/^/!!            /' <(tail -5 /tmp/karneia-catchup.log)
+fi
+
 echo ""
 echo "● Recording. Live feed:"
-echo "    local:   http://localhost:8000"
+echo "    local:   $LOCAL_URL"
 echo "    public:  https://karneia.asdfx.us/live   (visible while live)"
 echo "    tail:    tail -f \"$LIVE_TXT\""
 echo "    logs:    /tmp/karneia-catchup.log  /tmp/karneia-serve.log"

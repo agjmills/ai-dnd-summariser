@@ -12,6 +12,7 @@ Usage: python3 serve.py [path-to-.live.txt]   (defaults to newest in recordings/
 Needs DEEPSEEK_API_KEY in .env for posts. Set LIVE_PUSH_URL + LIVE_PUSH_TOKEN to mirror
 the feed to the remote Worker.
 """
+import errno
 import json
 import os
 import sys
@@ -23,6 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 PORT = int(os.environ.get("PORT", "8000"))
+PORT_TRIES = 20               # if PORT is taken, walk upwards this many ports
 CYCLE = 20                    # seconds between push/extract cycles
 EXTRACT_MIN_NEW = 700         # only ask for new posts once this many new chars accrued
 RECENT_HEADLINES = 6          # how many prior headlines to show the model (dedup context)
@@ -282,12 +284,32 @@ def main():
         atexit.register(lambda: push_remote(live=False))
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
+    # Bind before announcing — and don't die just because something else (another
+    # serve.py, an unrelated dev server) holds the preferred port: walk upwards.
+    httpd = None
+    for port in range(PORT, PORT + PORT_TRIES):
+        try:
+            httpd = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+            break
+        except OSError as e:
+            if e.errno != errno.EADDRINUSE:
+                raise
+            print(f"port {port} in use, trying {port + 1}…", file=sys.stderr)
+    if httpd is None:
+        print(f"no free port in {PORT}-{PORT + PORT_TRIES - 1}; giving up on the local "
+              f"view (the remote /live push is unaffected)", file=sys.stderr)
+
     has_key = bool(os.environ.get("DEEPSEEK_API_KEY"))
-    print(f"serving {LIVE_TXT.name} on http://0.0.0.0:{PORT}  "
+    print(f"serving {LIVE_TXT.name} on "
+          f"{f'http://0.0.0.0:{httpd.server_address[1]}' if httpd else '(no local port)'}  "
           f"(posts: {'on' if has_key else 'OFF — set DEEPSEEK_API_KEY'}; "
           f"remote: {'on' if push_on else 'off'})", file=sys.stderr)
     try:
-        ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+        if httpd:
+            httpd.serve_forever()
+        else:
+            # No local view, but the feed_loop thread still pushes to the Worker.
+            threading.Event().wait()
     except KeyboardInterrupt:
         pass
 
