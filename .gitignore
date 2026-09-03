@@ -15,6 +15,10 @@ wheels/
 # Recordings
 recordings/
 
+# Campaign content — local only, never publish to this public repo
+prompts/karneia-proper-nouns.md
+Proper Nouns.md
+
 # macOS
 .DS_Store
 models/

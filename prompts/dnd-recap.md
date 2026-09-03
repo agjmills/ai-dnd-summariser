@@ -15,7 +15,9 @@ Speakers are anonymous (`SPEAKER_00`, `SPEAKER_01`, ...) because diarization is 
 
 ## Canonical proper nouns
 
-This is a **Karneia** campaign. whisper.cpp garbles the proper nouns every session, so the authoritative spellings live in [`karneia-proper-nouns.md`](karneia-proper-nouns.md) — **read it before writing** and normalise every character, place, deity, and item name to the spelling there (e.g. transcript "Guthrin" → **Gwrtheryn**, "Morningstar" → **"Mourning" Star**, "Atmada" → **Atmata**). If a name isn't in that file, keep your best guess and mark it `[unclear: "best guess"]`.
+This is a **Karneia** campaign. whisper.cpp garbles the proper nouns every session, so the authoritative spellings live in `karneia-proper-nouns.md` alongside this file — **read it before writing** and normalise every character, place, deity, and item name to the spelling there (e.g. transcript "Guthrin" → **Gwrtheryn**, "Morningstar" → **"Mourning" Star**, "Atmada" → **Atmata**). If a name isn't in that file, keep your best guess and mark it `[unclear: "best guess"]`.
+
+That list is **campaign content and deliberately not committed** — this repo is public, and the list is a DM's master index of people, places and items the party hasn't met yet. It's gitignored and lives only on the DM's machine, so a fresh clone won't have it. If it's absent, say so once, then mark every proper noun you can't verify as `[unclear: "best guess"]` rather than guessing at canonical spellings.
 
 ## Steps
 
@@ -40,7 +42,7 @@ This is a **Karneia** campaign. whisper.cpp garbles the proper nouns every sessi
 
 ## What to avoid
 
-- Don't invent details. Transcription is imperfect — names of spells, NPCs, and places will often be garbled. Normalise proper nouns to [`karneia-proper-nouns.md`](karneia-proper-nouns.md); only when a name is absent from that list, write `[unclear: "best guess"]` rather than guess silently.
+- Don't invent details. Transcription is imperfect — names of spells, NPCs, and places will often be garbled. Normalise proper nouns to `karneia-proper-nouns.md`; only when a name is absent from that list (or the list isn't present at all), write `[unclear: "best guess"]` rather than guess silently.
 - Don't quote SPEAKER_XX labels in the final recap — translate to character/player names once confirmed.
 - Don't summarise out-of-character chatter (snack runs, rules debates, real-world tangents) unless explicitly funny enough to include under "memorable moments".
 - Don't editorialise — the recap is for the table, not a review of the session.
